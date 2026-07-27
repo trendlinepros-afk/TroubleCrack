@@ -7,6 +7,7 @@ import type {
   ApprovalMode,
   CapturedFrame,
   ConnectionStatus,
+  DiscoveredDevice,
   ElevationStatus,
   KvmSettings,
   LogEvent,
@@ -39,7 +40,11 @@ export const CH = {
   getSnapshot: 'session:snapshot',
   checkForUpdates: 'update:check',
   quitAndInstall: 'update:install',
-  // renderer → main (invoke): WebRTC signaling (login + /webrtc/session POST)
+  // renderer → main (invoke): device discovery + target selection
+  discoverDevices: 'kvm:discover',
+  selectKvmTarget: 'kvm:select-target',
+  forgetKvmTarget: 'kvm:forget',
+  // renderer → main (invoke): WebRTC signaling (resolve IP + login + session POST)
   kvmSignal: 'kvm:signal',
   // renderer → main (send): KVM bridge replies + status
   kvmReply: 'kvm:reply',
@@ -74,7 +79,7 @@ export type KvmActionPayload =
   | { kind: 'rpc'; method: string; params: Record<string, unknown> }
 
 export type KvmCommand =
-  | { type: 'connect'; settings: KvmSettings }
+  | { type: 'connect' }
   | { type: 'disconnect' }
   | { type: 'capture' }
   | { type: 'action'; action: KvmActionPayload }
@@ -90,20 +95,21 @@ export interface KvmCommandEnvelope {
   cmd: KvmCommand
 }
 
-/** WebRTC signaling request handled in the main process (avoids browser CORS/
- *  SameSite cookie limits when talking to the JetKVM). */
-export interface KvmSignalRequest {
-  address: string
-  useTls: boolean
-  authMode: 'auto' | 'password' | 'noPassword'
-  password: string
-  /** base64(JSON(offer)) as JetKVM expects. */
-  offerB64: string
-}
-
+/**
+ * WebRTC signaling result. Main resolves the JetKVM's current IP (discovery),
+ * logs in if needed, POSTs the offer to /webrtc/session, captures the stable
+ * device id, and returns the answer. The renderer only supplies the offer.
+ */
 export type KvmSignalResult =
   | { ok: true; answerB64: string }
-  | { ok: false; error: string }
+  | { ok: false; error: string; needsPicker?: boolean }
+
+/** A manually-entered or picker-selected target for the next connect only. */
+export interface KvmTargetSelection {
+  /** IP or IP:port. Never persisted — used for the next connection only. */
+  host: string
+  useTls: boolean
+}
 
 export interface KvmReplyEnvelope {
   id: string
@@ -153,8 +159,13 @@ export interface TroubleCrackApi {
   checkForUpdates(): Promise<UpdateCheckResult>
   quitAndInstall(): Promise<void>
 
-  // WebRTC signaling done in main (login + /webrtc/session).
-  kvmSignal(req: KvmSignalRequest): Promise<KvmSignalResult>
+  // Device discovery + target selection (IP is never persisted).
+  discoverDevices(useTls: boolean): Promise<DiscoveredDevice[]>
+  selectKvmTarget(selection: KvmTargetSelection): Promise<void>
+  forgetKvmTarget(): Promise<void>
+
+  // WebRTC signaling done in main (resolve IP + login + /webrtc/session).
+  kvmSignal(offerB64: string): Promise<KvmSignalResult>
 
   // KVM bridge: renderer registers a handler main invokes; renderer replies.
   onKvmCommand(handler: (env: KvmCommandEnvelope) => void): () => void

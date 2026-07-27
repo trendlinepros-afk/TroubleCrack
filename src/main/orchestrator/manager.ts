@@ -5,11 +5,7 @@ import { KvmBackend } from '../backends/kvmBackend'
 import { LocalBackend } from '../backends/localBackend'
 import { VaultService } from '../vault'
 import { RepairSession } from './session'
-import {
-  getApiKeyPlaintext,
-  getKvmPasswordPlaintext,
-  loadSettings
-} from '../settings'
+import { getApiKeyPlaintext, loadSettings } from '../settings'
 import type {
   ApprovalDecision,
   ApprovalMode,
@@ -69,15 +65,9 @@ class SessionManager {
     if (!apiKey) throw new Error('Set an Anthropic API key in Settings before starting a session.')
 
     const anthropic = new AnthropicService(apiKey, settings.model)
-    const backend =
-      input.mode === 'kvm'
-        ? new KvmBackend({
-            address: settings.kvm.address,
-            useTls: settings.kvm.useTls,
-            authMode: settings.kvm.authMode,
-            password: getKvmPasswordPlaintext() ?? ''
-          })
-        : new LocalBackend()
+    // The KVM backend holds no address — the renderer/main resolve the device's
+    // current IP via discovery at connect time.
+    const backend = input.mode === 'kvm' ? new KvmBackend() : new LocalBackend()
     const vault = new VaultService(settings.vaultPath)
 
     const session = new RepairSession(input, anthropic, backend, vault, settings.caps, {

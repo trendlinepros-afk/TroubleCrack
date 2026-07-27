@@ -1,7 +1,10 @@
 import http from 'node:http'
 import https from 'node:https'
 import { createLogger } from './logger'
-import type { KvmSignalRequest, KvmSignalResult } from '@shared/ipc-contract'
+import { loadSettings, saveSettings, getKvmPasswordPlaintext } from './settings'
+import { resolveTarget, setPreferredTarget } from './kvmResolve'
+import { deviceIdToHostname, fetchDeviceInfo } from './discovery'
+import type { KvmSignalResult } from '@shared/ipc-contract'
 
 const logger = createLogger('kvm-signal')
 
@@ -9,13 +12,6 @@ interface HttpResponse {
   status: number
   headers: http.IncomingHttpHeaders
   body: string
-}
-
-function parseHostPort(address: string, useTls: boolean): { host: string; port: number } {
-  const trimmed = address.replace(/^https?:\/\//, '').replace(/\/.*$/, '')
-  const [host, portStr] = trimmed.split(':')
-  const port = portStr ? Number(portStr) : useTls ? 443 : 80
-  return { host: host || '', port }
 }
 
 function request(
@@ -107,28 +103,50 @@ async function postSession(
   )
 }
 
+/** Persist the captured stable identity (never the IP) so future connects can
+ *  re-resolve the device via mDNS after a DHCP change. */
+async function persistIdentity(deviceId: string): Promise<void> {
+  const cur = loadSettings().kvm
+  const hostname = deviceIdToHostname(deviceId)
+  if (cur.deviceId !== deviceId || cur.hostname !== hostname) {
+    await saveSettings({
+      kvm: { deviceId, hostname, deviceName: cur.deviceName ?? `JetKVM ${deviceId}` }
+    })
+    logger.info(`Captured device identity ${deviceId} (${hostname})`)
+  }
+}
+
 /**
- * Perform the JetKVM WebRTC signaling handshake in the main process: log in if
- * needed (capturing the authToken cookie), then POST the offer to
- * /webrtc/session and return the answer. Doing this in main avoids the browser
- * SameSite/CORS limits that block cross-origin cookies from the renderer.
+ * Perform the JetKVM WebRTC signaling handshake in the main process:
+ * 1. resolve the device's CURRENT IP via discovery (never a stored IP),
+ * 2. log in if needed (capturing the authToken cookie),
+ * 3. POST the offer to /webrtc/session and return the answer,
+ * 4. capture the device's stable id (GET /device) and persist it.
+ * Doing all HTTP in main avoids the browser SameSite/CORS limits that block
+ * cross-origin cookies from the renderer.
  */
-export async function signalWebrtc(req: KvmSignalRequest): Promise<KvmSignalResult> {
-  const { host, port } = parseHostPort(req.address, req.useTls)
-  if (!host) return { ok: false, error: 'JetKVM address is empty or invalid.' }
+export async function signalWebrtc(offerB64: string): Promise<KvmSignalResult> {
+  const kvm = loadSettings().kvm
+  const password = getKvmPasswordPlaintext() ?? ''
+
+  const resolved = await resolveTarget(kvm)
+  if (!resolved.ok) {
+    return { ok: false, error: resolved.error, ...(resolved.needsPicker ? { needsPicker: true } : {}) }
+  }
+  const { host, port, useTls } = resolved.target
 
   try {
     let cookie: string | undefined
-    if (req.authMode === 'password' && req.password) {
-      cookie = await login(host, port, req.useTls, req.password)
+    if (kvm.authMode === 'password' && password) {
+      cookie = await login(host, port, useTls, password)
     }
 
-    let res = await postSession(host, port, req.useTls, req.offerB64, cookie)
+    let res = await postSession(host, port, useTls, offerB64, cookie)
 
     // Auto mode: if unauthorized, log in and retry once.
-    if (res.status === 401 && req.authMode !== 'noPassword' && req.password) {
-      cookie = await login(host, port, req.useTls, req.password)
-      res = await postSession(host, port, req.useTls, req.offerB64, cookie)
+    if (res.status === 401 && kvm.authMode !== 'noPassword' && password) {
+      cookie = await login(host, port, useTls, password)
+      res = await postSession(host, port, useTls, offerB64, cookie)
     }
 
     if (res.status === 401) {
@@ -145,6 +163,15 @@ export async function signalWebrtc(req: KvmSignalRequest): Promise<KvmSignalResu
       return { ok: false, error: 'JetKVM returned a non-JSON session response.' }
     }
     if (!parsed.sd) return { ok: false, error: 'JetKVM session response had no answer SDP.' }
+
+    // Best-effort: capture the stable device identity for future re-resolution.
+    const info = await fetchDeviceInfo(host, port, useTls, cookie).catch(() => null)
+    if (info?.deviceId) {
+      await persistIdentity(info.deviceId).catch(() => undefined)
+      // Identity captured — the transient picker/manual choice can be released.
+      setPreferredTarget(null)
+    }
+
     return { ok: true, answerB64: parsed.sd }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)

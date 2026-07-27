@@ -33,14 +33,38 @@ export interface ConnectionStatus {
 
 export type KvmAuthMode = 'auto' | 'password' | 'noPassword'
 
+/**
+ * The JetKVM is identified by a STABLE identity (device id / `.local` hostname),
+ * never by IP — the address is DHCP-assigned and this app moves between networks,
+ * so the current IP is resolved fresh at connect time via discovery.
+ */
 export interface KvmSettings {
-  /** host or host:port (no scheme). */
-  address: string
+  /** Stable JetKVM device id (from the authenticated /device endpoint). */
+  deviceId: string | null
+  /** Friendly name for display. */
+  deviceName: string | null
+  /** The device's `.local` hostname (jetkvm-<id>.local) for mDNS re-resolution. */
+  hostname: string | null
   useTls: boolean
   authMode: KvmAuthMode
   /** Only ever carries plaintext in-flight from the Settings form; at rest the
    *  password is held in the encrypted blob alongside the API key. */
   password: string
+}
+
+/** A JetKVM found by discovery. The `host` (IP) is ephemeral and never persisted. */
+export interface DiscoveredDevice {
+  /** Stable identity: device id if known, else `.local` hostname, else host:port. */
+  id: string
+  name: string
+  /** Current IP — ephemeral, resolved fresh; never stored in settings. */
+  host: string
+  port: number
+  useTls: boolean
+  hostname: string | null
+  deviceId: string | null
+  isSetup: boolean | null
+  source: 'mdns' | 'scan' | 'manual'
 }
 
 export interface Caps {

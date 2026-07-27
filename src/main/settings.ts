@@ -1,9 +1,9 @@
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
-import net from 'node:net'
 import { app, safeStorage } from 'electron'
 import Anthropic from '@anthropic-ai/sdk'
 import { JsonStore } from './store'
+import { discovery } from './discovery'
 import { createLogger } from './logger'
 import { DEFAULT_CAPS, DEFAULT_MODEL, VAULT_SUBDIR } from '@shared/constants'
 import type {
@@ -32,7 +32,7 @@ interface Secrets {
 }
 
 const defaultPersisted: PersistedSettings = {
-  kvm: { address: '', useTls: false, authMode: 'auto' },
+  kvm: { deviceId: null, deviceName: null, hostname: null, useTls: false, authMode: 'auto' },
   model: DEFAULT_MODEL,
   vaultPath: null,
   caps: { ...DEFAULT_CAPS },
@@ -111,7 +111,9 @@ export async function saveSettings(patch: SettingsPatch): Promise<Settings> {
 
   const next: PersistedSettings = {
     kvm: {
-      address: patch.kvm?.address ?? cur.kvm.address,
+      deviceId: patch.kvm?.deviceId !== undefined ? patch.kvm.deviceId : cur.kvm.deviceId,
+      deviceName: patch.kvm?.deviceName !== undefined ? patch.kvm.deviceName : cur.kvm.deviceName,
+      hostname: patch.kvm?.hostname !== undefined ? patch.kvm.hostname : cur.kvm.hostname,
       useTls: patch.kvm?.useTls ?? cur.kvm.useTls,
       authMode: patch.kvm?.authMode ?? cur.kvm.authMode
     },
@@ -143,40 +145,30 @@ export async function saveSettings(patch: SettingsPatch): Promise<Settings> {
 // Validation
 // ---------------------------------------------------------------------------
 
-function parseHostPort(address: string, useTls: boolean): { host: string; port: number } {
-  const trimmed = address.replace(/^https?:\/\//, '').replace(/\/.*$/, '')
-  const [host, portStr] = trimmed.split(':')
-  const port = portStr ? Number(portStr) : useTls ? 443 : 80
-  return { host: host || '', port }
-}
-
-function tcpReachable(host: string, port: number, timeoutMs = 3000): Promise<boolean> {
-  return new Promise((resolve) => {
-    const socket = new net.Socket()
-    let done = false
-    const finish = (ok: boolean) => {
-      if (done) return
-      done = true
-      socket.destroy()
-      resolve(ok)
-    }
-    socket.setTimeout(timeoutMs)
-    socket.once('connect', () => finish(true))
-    socket.once('timeout', () => finish(false))
-    socket.once('error', () => finish(false))
-    socket.connect(port, host)
-  })
-}
-
 async function validateKvm(kvm: KvmSettings): Promise<ValidationResult> {
-  if (!kvm.address.trim()) return { ok: false, message: 'No JetKVM address set.' }
-  const { host, port } = parseHostPort(kvm.address, kvm.useTls)
-  if (!host) return { ok: false, message: 'Address could not be parsed.' }
-  const reachable = await tcpReachable(host, port)
-  if (!reachable) {
-    return { ok: false, message: `Could not reach ${host}:${port}. Check the address and that the JetKVM is powered on.` }
+  try {
+    // If we know the device, re-resolve it by its mDNS hostname / id.
+    if (kvm.hostname || kvm.deviceId) {
+      const d = kvm.hostname
+        ? await discovery.resolveByHostname(kvm.hostname, kvm.useTls)
+        : await discovery.resolveByDeviceId(kvm.deviceId as string, kvm.useTls)
+      if (d) return { ok: true, message: `Resolved ${d.name} at ${d.host} (current IP).` }
+    }
+    // Otherwise scan the network for any JetKVM.
+    const found = await discovery.discover(kvm.useTls)
+    if (found.length === 0) {
+      return {
+        ok: false,
+        message: 'No JetKVM found on the network. Power it on, or enter an IP manually below.'
+      }
+    }
+    if (found.length === 1) {
+      return { ok: true, message: `Found a JetKVM at ${found[0]!.host}.` }
+    }
+    return { ok: true, message: `Found ${found.length} JetKVMs — pick one below.` }
+  } catch (err) {
+    return { ok: false, message: `Discovery failed: ${err instanceof Error ? err.message : String(err)}` }
   }
-  return { ok: true, message: `Reachable at ${host}:${port}.` }
 }
 
 async function validateApiKey(key: string | null): Promise<ValidationResult> {

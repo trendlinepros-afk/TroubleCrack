@@ -10,7 +10,7 @@ import {
   MODEL_DISPLAY_WIDTH
 } from '@shared/constants'
 import type { KvmActionPayload, KvmCommandResult } from '@shared/ipc-contract'
-import type { CapturedFrame, KvmSettings, TargetMode } from '@shared/types'
+import type { CapturedFrame, TargetMode } from '@shared/types'
 import type {
   PerceiveResult,
   RenderedAction,
@@ -35,10 +35,9 @@ export class KvmBackend implements TargetBackend {
   readonly supportsReboot = true
   private lastFrame: { width: number; height: number } | null = null
 
-  constructor(private settings: KvmSettings) {}
-
   async connect(): Promise<void> {
-    const res = await kvmBridge.send({ type: 'connect', settings: this.settings }, 45_000)
+    // The renderer resolves the device's current IP (via main) and connects.
+    const res = await kvmBridge.send({ type: 'connect' }, 60_000)
     if (!res.ok) throw new Error(res.error)
   }
 

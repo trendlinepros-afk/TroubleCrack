@@ -51,7 +51,10 @@ const api: TroubleCrackApi = {
   checkForUpdates: () => ipcRenderer.invoke(CH.checkForUpdates) as Promise<UpdateCheckResult>,
   quitAndInstall: () => ipcRenderer.invoke(CH.quitAndInstall) as Promise<void>,
 
-  kvmSignal: (req) => ipcRenderer.invoke(CH.kvmSignal, req),
+  discoverDevices: (useTls: boolean) => ipcRenderer.invoke(CH.discoverDevices, useTls),
+  selectKvmTarget: (selection) => ipcRenderer.invoke(CH.selectKvmTarget, selection) as Promise<void>,
+  forgetKvmTarget: () => ipcRenderer.invoke(CH.forgetKvmTarget) as Promise<void>,
+  kvmSignal: (offerB64: string) => ipcRenderer.invoke(CH.kvmSignal, offerB64),
   onKvmCommand: (handler: (env: KvmCommandEnvelope) => void) => on<KvmCommandEnvelope>(CH.evKvmCommand, handler),
   replyKvmCommand: (reply: KvmReplyEnvelope) => ipcRenderer.send(CH.kvmReply, reply),
   reportKvmStatus: (status: ConnectionStatus) => ipcRenderer.send(CH.kvmStatus, status),

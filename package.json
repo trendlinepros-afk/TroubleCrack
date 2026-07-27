@@ -25,9 +25,11 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.115.0",
     "electron-log": "^5.4.0",
-    "electron-updater": "^6.8.0"
+    "electron-updater": "^6.8.0",
+    "multicast-dns": "^7.2.5"
   },
   "devDependencies": {
+    "@types/multicast-dns": "^7.2.4",
     "@types/node": "^22.10.0",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",

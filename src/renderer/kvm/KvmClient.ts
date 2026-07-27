@@ -1,7 +1,7 @@
 import { RELEASE_REPORT, textToReports, type HidReport } from '@shared/hid'
 import { KVM_ABS_MAX } from '@shared/constants'
 import type { KvmActionPayload, KvmCommand, KvmCommandResult } from '@shared/ipc-contract'
-import type { CapturedFrame, ConnectionStatus, KvmSettings } from '@shared/types'
+import type { CapturedFrame, ConnectionStatus } from '@shared/types'
 import { attachManualControl, detachManualControl } from './manualControl'
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
@@ -19,7 +19,6 @@ export class KvmClient {
   private rpc: RTCDataChannel | null = null
   private videoEl: HTMLVideoElement | null = null
   private stream: MediaStream | null = null
-  private settings: KvmSettings | null = null
   private rpcId = 1
   private manual = false
   private reconnectAttempt = 0
@@ -47,7 +46,6 @@ export class KvmClient {
     try {
       switch (cmd.type) {
         case 'connect':
-          this.settings = cmd.settings
           this.wantConnected = true
           await this.connect()
           return { ok: true }
@@ -79,9 +77,8 @@ export class KvmClient {
   // --- connection ----------------------------------------------------------
 
   private async connect(): Promise<void> {
-    if (!this.settings) throw new Error('No KVM settings')
     this.teardown()
-    this.status('connecting', `Connecting to ${this.settings.address}…`)
+    this.status('connecting', 'Finding the JetKVM…')
 
     const pc = new RTCPeerConnection({
       iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
@@ -115,13 +112,9 @@ export class KvmClient {
 
     this.status('negotiating', 'Negotiating session…')
     const offerB64 = btoa(JSON.stringify(pc.localDescription))
-    const result = await window.api.kvmSignal({
-      address: this.settings.address,
-      useTls: this.settings.useTls,
-      authMode: this.settings.authMode,
-      password: this.settings.password,
-      offerB64
-    })
+    // Main resolves the device's current IP (discovery), logs in, and posts the
+    // offer to /webrtc/session — the renderer never handles the address.
+    const result = await window.api.kvmSignal(offerB64)
     if (!result.ok) throw new Error(result.error)
 
     const answer = JSON.parse(atob(result.answerB64)) as RTCSessionDescriptionInit

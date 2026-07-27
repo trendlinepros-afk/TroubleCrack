@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useStore } from '../state/store'
-import type { KvmAuthMode, SettingsValidation } from '@shared/types'
+import type { DiscoveredDevice, KvmAuthMode, SettingsValidation } from '@shared/types'
 
 const MODELS = ['claude-opus-5', 'claude-sonnet-5', 'claude-opus-4-8', 'claude-fable-5', 'claude-haiku-4-5']
 
@@ -11,10 +11,15 @@ export function SettingsPage(): React.JSX.Element {
   const update = useStore((s) => s.update)
   const appVersion = useStore((s) => s.appVersion)
 
-  const [address, setAddress] = useState('')
+  const [deviceName, setDeviceName] = useState('')
   const [useTls, setUseTls] = useState(false)
   const [authMode, setAuthMode] = useState<KvmAuthMode>('auto')
   const [kvmPassword, setKvmPassword] = useState('')
+  const [devices, setDevices] = useState<DiscoveredDevice[]>([])
+  const [discovering, setDiscovering] = useState(false)
+  const [manualIp, setManualIp] = useState('')
+  const [selectedNote, setSelectedNote] = useState('')
+
   const [apiKey, setApiKey] = useState('')
   const [vaultPath, setVaultPath] = useState<string | null>(null)
   const [model, setModel] = useState('claude-opus-5')
@@ -29,7 +34,7 @@ export function SettingsPage(): React.JSX.Element {
 
   useEffect(() => {
     if (!settings) return
-    setAddress(settings.kvm.address)
+    setDeviceName(settings.kvm.deviceName ?? '')
     setUseTls(settings.kvm.useTls)
     setAuthMode(settings.kvm.authMode)
     setVaultPath(settings.vaultPath)
@@ -40,11 +45,49 @@ export function SettingsPage(): React.JSX.Element {
     setUpdateRepo(settings.updateRepo ?? '')
   }, [settings])
 
+  const discover = async (): Promise<void> => {
+    setDiscovering(true)
+    setDevices([])
+    try {
+      setDevices(await window.api.discoverDevices(useTls))
+    } finally {
+      setDiscovering(false)
+    }
+  }
+
+  const useDevice = async (d: DiscoveredDevice): Promise<void> => {
+    await window.api.selectKvmTarget({ host: d.host, useTls: d.useTls })
+    const next = await window.api.saveSettings({
+      kvm: { deviceName: d.name, deviceId: d.deviceId, hostname: d.hostname }
+    })
+    setSettings(next)
+    setDeviceName(next.kvm.deviceName ?? '')
+    setSelectedNote(
+      d.deviceId || d.hostname
+        ? `Selected ${d.name}. Its IP will be re-resolved automatically.`
+        : `Selected ${d.name}. Its stable identity is captured on first connect.`
+    )
+  }
+
+  const useManualIp = async (): Promise<void> => {
+    if (!manualIp.trim()) return
+    await window.api.selectKvmTarget({ host: manualIp.trim(), useTls })
+    setSelectedNote(`Will connect to ${manualIp.trim()} next; the device identity is learned on connect.`)
+  }
+
+  const forget = async (): Promise<void> => {
+    await window.api.forgetKvmTarget()
+    const s = await window.api.getSettings()
+    setSettings(s)
+    setDeviceName('')
+    setSelectedNote('')
+  }
+
   const save = async (): Promise<void> => {
     setBusy(true)
     try {
       const next = await window.api.saveSettings({
-        kvm: { address, useTls, authMode, ...(kvmPassword ? { password: kvmPassword } : {}) },
+        kvm: { deviceName: deviceName || null, useTls, authMode, ...(kvmPassword ? { password: kvmPassword } : {}) },
         model,
         vaultPath,
         caps: { maxIterations, maxSpendUsd: maxSpend, maxWallClockMs: maxWallMin * 60000 },
@@ -65,7 +108,14 @@ export function SettingsPage(): React.JSX.Element {
     setBusy(true)
     try {
       const result = await window.api.validateSettings({
-        kvm: { address, useTls, authMode, password: kvmPassword },
+        kvm: {
+          deviceId: settings?.kvm.deviceId ?? null,
+          deviceName: deviceName || null,
+          hostname: settings?.kvm.hostname ?? null,
+          useTls,
+          authMode,
+          password: kvmPassword
+        },
         anthropicApiKeyPlaintext: apiKey || undefined,
         vaultPath
       })
@@ -80,20 +130,81 @@ export function SettingsPage(): React.JSX.Element {
     if (dir) setVaultPath(dir)
   }
 
-  const relaunchAdmin = async (): Promise<void> => {
-    await window.api.relaunchAsAdmin()
-  }
-
   return (
     <div className="settings">
       <h2>Settings</h2>
 
       <div className="group">
-        <h3>JetKVM</h3>
+        <h3>JetKVM device</h3>
+        <p className="muted" style={{ marginTop: 0 }}>
+          The JetKVM's IP is DHCP-assigned and never stored. TroubleCrack finds the
+          device by identity (its <span className="mono">jetkvm-&lt;id&gt;.local</span> name)
+          and re-resolves the current IP automatically — on launch and on any
+          connection loss.
+        </p>
+
+        <div className="validation" style={{ marginBottom: 10 }}>
+          {settings?.kvm.deviceName || settings?.kvm.deviceId ? (
+            <span className="ok">
+              ✓ Device: {settings.kvm.deviceName ?? settings.kvm.deviceId}
+              {settings.kvm.hostname ? ` (${settings.kvm.hostname})` : ''}
+            </span>
+          ) : (
+            <span>• No device selected yet — discover one below.</span>
+          )}
+          {(settings?.kvm.deviceId || settings?.kvm.deviceName) && (
+            <button style={{ marginLeft: 10 }} onClick={() => void forget()}>
+              Forget device
+            </button>
+          )}
+        </div>
+
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
+          <button className="primary" disabled={discovering} onClick={() => void discover()}>
+            {discovering ? 'Searching…' : 'Discover devices'}
+          </button>
+          <label style={{ margin: 0 }}>
+            <input
+              type="checkbox"
+              checked={useTls}
+              onChange={(e) => setUseTls(e.target.checked)}
+              style={{ width: 'auto', marginRight: 6 }}
+            />
+            Use HTTPS/TLS
+          </label>
+        </div>
+
+        {devices.length > 0 && (
+          <div style={{ marginBottom: 10 }}>
+            {devices.map((d) => (
+              <div key={d.id} className="attempt">
+                <div style={{ flex: 1 }}>
+                  <div>{d.name}</div>
+                  <div className="meta">
+                    {d.host}:{d.port} · {d.source}
+                    {d.isSetup === false ? ' · not set up' : d.isSetup ? ' · configured' : ''}
+                  </div>
+                </div>
+                <button className="ok" onClick={() => void useDevice(d)}>
+                  Use this
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        {devices.length === 0 && !discovering && (
+          <div className="muted" style={{ marginBottom: 10 }}>
+            No devices listed yet. Click <em>Discover devices</em> (mDNS + a local-subnet scan).
+          </div>
+        )}
+
         <div className="row">
           <div>
-            <label>Address (host or host:port)</label>
-            <input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="192.168.1.50" />
+            <label>Manual IP (last resort)</label>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input value={manualIp} onChange={(e) => setManualIp(e.target.value)} placeholder="192.168.1.50 or 192.168.1.50:80" />
+              <button onClick={() => void useManualIp()}>Use IP</button>
+            </div>
           </div>
           <div>
             <label>Auth mode</label>
@@ -106,7 +217,11 @@ export function SettingsPage(): React.JSX.Element {
         </div>
         <div className="row">
           <div>
-            <label>Password {settings?.hasApiKey ? '' : ''}</label>
+            <label>Device name (optional)</label>
+            <input value={deviceName} onChange={(e) => setDeviceName(e.target.value)} placeholder="Rack KVM #1" />
+          </div>
+          <div>
+            <label>Password</label>
             <input
               type="password"
               value={kvmPassword}
@@ -114,18 +229,8 @@ export function SettingsPage(): React.JSX.Element {
               placeholder="(leave blank to keep current)"
             />
           </div>
-          <div>
-            <label>
-              <input
-                type="checkbox"
-                checked={useTls}
-                onChange={(e) => setUseTls(e.target.checked)}
-                style={{ width: 'auto', marginRight: 6 }}
-              />
-              Use HTTPS/TLS
-            </label>
-          </div>
         </div>
+        {selectedNote && <div className="validation ok" style={{ marginTop: 4 }}>{selectedNote}</div>}
         {validation && (
           <div className="validation">
             <span className={validation.kvm.ok ? 'ok' : 'bad'}>
@@ -139,7 +244,7 @@ export function SettingsPage(): React.JSX.Element {
         <h3>Anthropic</h3>
         <div className="row">
           <div>
-            <label>API key {settings?.hasApiKey ? '(stored — encrypted)' : '(not set)'}</label>
+            <label>API key {settings?.hasApiKey ? '(stored — encrypted, persists across updates)' : '(not set)'}</label>
             <input
               type="password"
               value={apiKey}
@@ -220,7 +325,7 @@ export function SettingsPage(): React.JSX.Element {
           </span>
           {elevation?.supported && !elevation.elevated && (
             <div style={{ marginTop: 8 }}>
-              <button onClick={() => void relaunchAdmin()}>Relaunch as Administrator</button>
+              <button onClick={() => void window.api.relaunchAsAdmin()}>Relaunch as Administrator</button>
             </div>
           )}
         </div>
@@ -261,7 +366,7 @@ export function SettingsPage(): React.JSX.Element {
           Save
         </button>
         <button disabled={busy} onClick={() => void validate()}>
-          Test connection & key
+          Test discovery & key
         </button>
         {saved && <span className="pill ok">Saved</span>}
       </div>

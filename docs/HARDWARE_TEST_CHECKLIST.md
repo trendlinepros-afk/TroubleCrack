@@ -7,12 +7,20 @@ must be verified by hand. Work top to bottom; each item lists the expected resul
 
 Legend: ☐ = to test.
 
-## A. Settings & connectivity
+## A. Discovery, settings & connectivity
 
-- ☐ **Reachability** — enter the JetKVM address, click *Test connection & key* →
-  KVM row shows a green "Reachable at host:port".
-- ☐ **Bad address** — enter a wrong address → red "Could not reach…"; the app does
-  not hang or crash.
+- ☐ **Discovery (mDNS + scan)** — Settings → *Discover devices* → the JetKVM
+  appears in the list (by IP, "configured/not set up"); the scan completes in a
+  few seconds.
+- ☐ **Pick a device** — *Use this* on the device → it's shown as the selected
+  device; no IP is written to `settings.json` (check `%APPDATA%/TroubleCrack`).
+- ☐ **mDNS re-resolution** — after connecting once (identity captured), change the
+  JetKVM's DHCP lease / IP, then *Test discovery & key* → it re-resolves the new
+  IP via `jetkvm-<id>.local` without re-entering anything.
+- ☐ **No device** — with the JetKVM off, *Discover devices* → empty list + a clear
+  "No JetKVM found" message; the app does not hang.
+- ☐ **Manual IP (last resort)** — enter an IP → *Use IP* → next connect uses it and
+  captures the identity; the IP itself is not persisted.
 - ☐ **API key valid** — enter a real Anthropic key, *Test* → API row green.
 - ☐ **API key invalid** — enter a bad key → red "rejected (401)".
 - ☐ **Vault writable** — pick a real Obsidian folder → green "writable"; a
@@ -28,9 +36,10 @@ Legend: ☐ = to test.
 - ☐ **No-password mode** — with local-auth off, connect with auth mode *Auto* →
   connects without a password.
 - ☐ **Video fidelity** — text on the target is legible in the preview.
-- ☐ **Reconnect** — unplug the JetKVM network / power-cycle it → badge shows
-  **Reconnecting… (attempt N)** with backoff, then recovers automatically when it
-  returns. The app never white-screens.
+- ☐ **Reconnect (with IP change)** — unplug the JetKVM network / power-cycle it (or
+  force a new DHCP lease) → badge shows **Reconnecting… (attempt N)** with backoff;
+  discovery re-resolves the (possibly new) IP and it recovers automatically. The
+  app never white-screens.
 - ☐ **App restart mid-connection** — kill and reopen the app → it starts clean and
   the previous session snapshot is shown (marked interrupted).
 

@@ -44,7 +44,7 @@ export function SessionBar(): React.JSX.Element {
       <div className="field">
         <label>Target</label>
         <select value={mode} onChange={(e) => setMode(e.target.value as TargetMode)} disabled={active}>
-          <option value="kvm">JetKVM device{settings?.kvm.address ? ` (${settings.kvm.address})` : ''}</option>
+          <option value="kvm">JetKVM device{settings?.kvm.deviceName ? ` (${settings.kvm.deviceName})` : ''}</option>
           <option value="local">This computer</option>
         </select>
       </div>

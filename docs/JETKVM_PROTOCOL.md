@@ -104,6 +104,38 @@ So `KvmBackend` reboots the target by:
 3. prompt the human to press the physical power button (v1 has no ATX board
    assumption).
 
+## Device discovery (the IP is ephemeral)
+
+The JetKVM's IP is DHCP-assigned and the app moves between networks, so the IP is
+**never stored** — only a stable identity is. Findings from the source:
+
+- **mDNS** uses `github.com/pion/mdns/v2`, which is a **hostname responder**: it
+  answers A/AAAA queries for its `.local` names but does **not** advertise a
+  DNS-SD service instance (no `_http._tcp` SRV/TXT). So a service *browse*
+  (`bonjour-service`) finds nothing; the mechanism that works is a direct mDNS
+  **A-query for the device's `.local` hostname**. We use `multicast-dns` for that.
+- **Default hostname** is `jetkvm-<deviceid>.local` (lowercased) —
+  `hw.go GetDefaultHostname()`.
+- **`GET /device/status`** is **public** (with `Access-Control-Allow-Origin: *`)
+  and returns `{"isSetup": bool}`. This is the HTTP **fingerprint** used to
+  identify a JetKVM during a subnet scan.
+- **`GET /device`** (protected — but `protectedMiddleware` calls `c.Next()` with
+  no cookie in `noPassword` mode) returns `{deviceId, authMode, loopbackOnly}`.
+  We read `deviceId` here during the signaling handshake to capture the stable
+  identity, then derive the `.local` hostname for future mDNS re-resolution.
+
+Discovery tiers, in order (`src/main/discovery`, `src/main/kvmResolve.ts`):
+
+1. **mDNS A-query** for the stored `jetkvm-<id>.local` hostname → current IP.
+2. **Subnet scan** of the local /24(s): a fast TCP-open pass then the
+   `/device/status` fingerprint. Auto-used if exactly one device is found;
+   otherwise the admin picks one.
+3. **Manual IP** entry — last resort, transient (used for the next connect only,
+   never persisted); the stable identity is captured on that connect.
+
+Resolution runs on launch and on every connection loss, so a DHCP-reassigned IP
+is picked up automatically.
+
 ## Coordinate mapping
 
 Claude's computer-use tool returns coordinates in the *downscaled screenshot*

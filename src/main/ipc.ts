@@ -7,6 +7,9 @@ import { getElevationStatus, relaunchAsAdmin } from './system'
 import { sessionManager } from './orchestrator/manager'
 import { kvmBridge } from './kvmBridge'
 import { signalWebrtc } from './kvmSignaling'
+import { discovery } from './discovery'
+import { setPreferredTarget } from './kvmResolve'
+import type { KvmTargetSelection } from '@shared/ipc-contract'
 import { setLogBroadcaster } from './logger'
 import { checkForUpdates, currentUpdateStatus, quitAndInstall, setUpdateBroadcaster } from './updater'
 
@@ -53,8 +56,23 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
   ipcMain.handle(CH.checkForUpdates, () => checkForUpdates(false))
   ipcMain.handle(CH.quitAndInstall, () => quitAndInstall())
 
+  // Device discovery + selection (IP is ephemeral, never persisted) ----------
+  ipcMain.handle(CH.discoverDevices, (_e, useTls: boolean) => discovery.discover(useTls))
+  ipcMain.handle(CH.selectKvmTarget, (_e, selection: KvmTargetSelection) => {
+    // Parse "ip" or "ip:port"; store as a transient preferred target only.
+    const trimmed = selection.host.replace(/^https?:\/\//, '').replace(/\/.*$/, '')
+    const [host, portStr] = trimmed.split(':')
+    const port = portStr ? Number(portStr) : selection.useTls ? 443 : 80
+    setPreferredTarget({ host: host || '', port, useTls: selection.useTls })
+  })
+  ipcMain.handle(CH.forgetKvmTarget, async () => {
+    setPreferredTarget(null)
+    const cur = loadSettings()
+    await saveSettings({ kvm: { deviceId: null, deviceName: null, hostname: null, useTls: cur.kvm.useTls, authMode: cur.kvm.authMode } })
+  })
+
   // KVM bridge (renderer → main) ---------------------------------------------
-  ipcMain.handle(CH.kvmSignal, (_e, req) => signalWebrtc(req))
+  ipcMain.handle(CH.kvmSignal, (_e, offerB64: string) => signalWebrtc(offerB64))
   ipcMain.on(CH.kvmReply, (_e, env: KvmReplyEnvelope) => kvmBridge.handleReply(env))
   ipcMain.on(CH.kvmStatus, (_e, status: ConnectionStatus) => kvmBridge.handleStatus(status))
 
