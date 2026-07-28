@@ -77,6 +77,7 @@ export class RepairSession {
   private stepAutoApprove = false
   private baselineObservation: Observation | null = null
   private lastResultFlag: string | null = null
+  private lastAssistantText = ''
   private startedAt: number
 
   constructor(
@@ -453,6 +454,7 @@ export class RepairSession {
   }
 
   private async verify(step: PlaybookStep): Promise<VerifyOutcome> {
+    let outcome: VerifyOutcome
     if (this.backend.supportsReboot && step.rebootAfter && !step.terminal) {
       this.narrate('verify', 'Rebooting the target and watching the boot…')
       try {
@@ -480,12 +482,71 @@ export class RepairSession {
         shouldAbort: () => this.stopped
       })
       this.narrate('verify', `Boot outcome: ${result.outcome} — ${result.observation.summary}`)
-      return result.outcome
+      outcome = result.outcome
+    } else {
+      // No reboot (local, or a non-reboot step): trust the step self-assessment.
+      const fixed = this.lastResultFlag === 'FIXED'
+      this.narrate('verify', fixed ? 'Step reports the problem resolved.' : 'Step did not resolve the problem.')
+      outcome = fixed ? 'FIXED' : ('NO_CHANGE' as VerifyOutcome)
     }
-    // No reboot (local, or a non-reboot step): trust the step self-assessment.
-    const fixed = this.lastResultFlag === 'FIXED'
-    this.narrate('verify', fixed ? 'Step reports the problem resolved.' : 'Step did not resolve the problem.')
-    return fixed ? 'FIXED' : ('NO_CHANGE' as VerifyOutcome)
+
+    // Second opinion: before accepting a "fixed", a fresh skeptical pass checks
+    // the evidence against the reported problem. Booting is not the same as the
+    // problem being resolved, and a self-assessment can be over-confident.
+    if (outcome === 'FIXED' && !this.stopped) {
+      const opinion = await this.confirmFixed()
+      if (!opinion.confirmed) {
+        this.narrate('warn', `Second opinion did not confirm the fix (${opinion.reason}). Continuing the ladder.`)
+        return 'NO_CHANGE' as VerifyOutcome
+      }
+      this.narrate('verify', `Second opinion confirmed the fix${opinion.reason ? `: ${opinion.reason}` : ''}.`)
+    }
+    return outcome
+  }
+
+  /**
+   * A fresh-context skeptical check of a claimed fix against the reported
+   * problem. Independent of the step that produced the claim. Defaults to
+   * accepting on any error — a flaky check must never veto a real fix.
+   */
+  private async confirmFixed(): Promise<{ confirmed: boolean; reason: string }> {
+    const problem = this.snapshot.problemDescription || 'the reported problem'
+    try {
+      if (this.backend.mode === 'kvm') {
+        const frame = await this.backend.watchFrame()
+        if (!frame.imageBase64) return { confirmed: true, reason: 'no frame to re-check' }
+        const raw = await this.anthropic.visionText(
+          'You are a strict, skeptical reviewer verifying a repair claim. Respond with ONLY JSON.',
+          `The agent claims this problem is now resolved: "${problem}". Look at the current screen. ` +
+            `Is it actually resolved? Be strict: if the screen does not clearly show resolution (it is ` +
+            `still at an error, a recovery/boot screen, or an unrelated state), answer confirmed=false. ` +
+            `Return {"confirmed": boolean, "reason": short string}.`,
+          frame.imageBase64,
+          frame.imageMediaType ?? 'image/jpeg'
+        )
+        const j = extractJson(raw)
+        if (j && typeof j.confirmed === 'boolean') {
+          return { confirmed: j.confirmed, reason: typeof j.reason === 'string' ? j.reason : '' }
+        }
+        return { confirmed: true, reason: 'inconclusive re-check' }
+      }
+      const evidence = `${this.lastAssistantText}\n${this.currentAttempt()?.actions.slice(-8).join('\n') ?? ''}`.trim()
+      const raw = await this.anthropic.summarize(
+        'You are a strict, skeptical reviewer verifying a repair claim. Respond with ONLY JSON.',
+        `Reported problem: "${problem}".\nWhat the agent did and observed:\n${evidence}\n\n` +
+          `Is the problem actually resolved by this? Be strict — if the evidence shows errors, is ` +
+          `inconclusive, or only describes an intended fix without confirming it worked, answer ` +
+          `confirmed=false. Return {"confirmed": boolean, "reason": short string}.`,
+        300
+      )
+      const j = extractJson(raw)
+      if (j && typeof j.confirmed === 'boolean') {
+        return { confirmed: j.confirmed, reason: typeof j.reason === 'string' ? j.reason : '' }
+      }
+      return { confirmed: true, reason: 'inconclusive re-check' }
+    } catch {
+      return { confirmed: true, reason: 'second opinion unavailable' }
+    }
   }
 
   // --- approval ------------------------------------------------------------
@@ -561,7 +622,10 @@ export class RepairSession {
     for (const b of content) {
       if (b.type === 'text' && b.text.trim()) {
         const clean = b.text.replace(/RESULT:\s*\w+/gi, '').trim()
-        if (clean) this.narrate('info', clean.slice(0, 600))
+        if (clean) {
+          this.narrate('info', clean.slice(0, 600))
+          this.lastAssistantText = clean.slice(0, 1200)
+        }
       }
     }
   }

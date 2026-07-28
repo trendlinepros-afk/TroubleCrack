@@ -1,6 +1,6 @@
 import { RELEASE_REPORT, textToReports, type HidReport } from '@shared/hid'
 import { KVM_ABS_MAX } from '@shared/constants'
-import type { KvmActionPayload, KvmCommand, KvmCommandResult } from '@shared/ipc-contract'
+import type { FrameRegion, KvmActionPayload, KvmCommand, KvmCommandResult } from '@shared/ipc-contract'
 import type { CapturedFrame, ConnectionStatus } from '@shared/types'
 import { attachManualControl, detachManualControl } from './manualControl'
 
@@ -55,7 +55,7 @@ export class KvmClient {
           this.status('disconnected', 'Disconnected')
           return { ok: true }
         case 'capture': {
-          const frame = this.capture()
+          const frame = this.capture(cmd.region)
           return frame ? { ok: true, frame } : { ok: false, error: 'No video frame available' }
         }
         case 'action':
@@ -206,23 +206,54 @@ export class KvmClient {
 
   // --- capture -------------------------------------------------------------
 
-  private capture(): CapturedFrame | null {
+  private capture(region?: FrameRegion): CapturedFrame | null {
     const v = this.videoEl
     if (!v || v.videoWidth === 0 || v.videoHeight === 0) return null
     const nativeWidth = v.videoWidth
     const nativeHeight = v.videoHeight
+
+    // Zoom: crop a region of the NATIVE-resolution frame and scale it up so
+    // small text (log lines, filenames, stop codes) becomes legible.
+    if (region) {
+      const sx = Math.max(0, Math.floor(region.fx1 * nativeWidth))
+      const sy = Math.max(0, Math.floor(region.fy1 * nativeHeight))
+      const sw = Math.max(1, Math.min(nativeWidth - sx, Math.floor((region.fx2 - region.fx1) * nativeWidth)))
+      const sh = Math.max(1, Math.min(nativeHeight - sy, Math.floor((region.fy2 - region.fy1) * nativeHeight)))
+      const targetLong = 1400
+      const zoom = Math.min(4, Math.max(1, targetLong / Math.max(sw, sh)))
+      const width = Math.max(1, Math.round(sw * zoom))
+      const height = Math.max(1, Math.round(sh * zoom))
+      const jpeg = this.draw(v, sx, sy, sw, sh, width, height, 0.85)
+      return jpeg ? { jpegBase64: jpeg, width, height, nativeWidth: sw, nativeHeight: sh } : null
+    }
+
+    // Full frame: downscale from native to fit the model's screenshot box.
     const scale = Math.min(1, 1280 / nativeWidth, 800 / nativeHeight)
     const width = Math.max(1, Math.round(nativeWidth * scale))
     const height = Math.max(1, Math.round(nativeHeight * scale))
+    const jpeg = this.draw(v, 0, 0, nativeWidth, nativeHeight, width, height, 0.72)
+    return jpeg ? { jpegBase64: jpeg, width, height, nativeWidth, nativeHeight } : null
+  }
+
+  private draw(
+    v: HTMLVideoElement,
+    sx: number,
+    sy: number,
+    sw: number,
+    sh: number,
+    dw: number,
+    dh: number,
+    quality: number
+  ): string | null {
     const canvas = document.createElement('canvas')
-    canvas.width = width
-    canvas.height = height
+    canvas.width = dw
+    canvas.height = dh
     const ctx = canvas.getContext('2d')
     if (!ctx) return null
-    ctx.drawImage(v, 0, 0, width, height)
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.7)
-    const jpegBase64 = dataUrl.split(',')[1] ?? ''
-    return { jpegBase64, width, height, nativeWidth, nativeHeight }
+    ctx.imageSmoothingEnabled = true
+    ctx.imageSmoothingQuality = 'high'
+    ctx.drawImage(v, sx, sy, sw, sh, 0, 0, dw, dh)
+    return canvas.toDataURL('image/jpeg', quality).split(',')[1] ?? null
   }
 
   // --- manual control ------------------------------------------------------

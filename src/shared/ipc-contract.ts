@@ -78,10 +78,18 @@ export type KvmActionPayload =
   | { kind: 'mountIso'; url: string; mode: string }
   | { kind: 'rpc'; method: string; params: Record<string, unknown> }
 
+/** A crop of the native frame, as fractions 0..1 (for high-res zoom). */
+export interface FrameRegion {
+  fx1: number
+  fy1: number
+  fx2: number
+  fy2: number
+}
+
 export type KvmCommand =
   | { type: 'connect' }
   | { type: 'disconnect' }
-  | { type: 'capture' }
+  | { type: 'capture'; region?: FrameRegion }
   | { type: 'action'; action: KvmActionPayload }
   | { type: 'setManual'; enabled: boolean }
   | { type: 'ping' }

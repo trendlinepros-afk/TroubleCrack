@@ -9,7 +9,7 @@ import {
   MODEL_DISPLAY_HEIGHT,
   MODEL_DISPLAY_WIDTH
 } from '@shared/constants'
-import type { KvmActionPayload, KvmCommandResult } from '@shared/ipc-contract'
+import type { FrameRegion, KvmActionPayload, KvmCommandResult } from '@shared/ipc-contract'
 import type { CapturedFrame, TargetMode } from '@shared/types'
 import type {
   PerceiveResult,
@@ -52,7 +52,10 @@ export class KvmBackend implements TargetBackend {
         name: 'computer',
         display_width_px: this.lastFrame?.width ?? MODEL_DISPLAY_WIDTH,
         display_height_px: this.lastFrame?.height ?? MODEL_DISPLAY_HEIGHT,
-        display_number: 1
+        display_number: 1,
+        // Let the model zoom into small text (log lines, stop codes, filenames);
+        // we return a native-resolution crop of the requested region.
+        enable_zoom: true
       }
     ]
   }
@@ -66,9 +69,12 @@ export class KvmBackend implements TargetBackend {
       'You are controlling a physical Windows machine through a KVM. Your only ' +
       'channel is vision: take a screenshot, then click, type, or press keys. ' +
       'After each action take a screenshot and verify the result before the next ' +
-      'step. Boot-menu and BIOS keys must be pressed at the right moment — say ' +
-      'which key and when, and the orchestrator handles precise timing. Never ' +
-      'assume an action worked without a screenshot confirming it.'
+      'step. If any text is too small to read confidently — log lines, file names, ' +
+      'a BSOD stop code, a status bar — use the zoom action on that region and read ' +
+      'it before deciding; do not guess. Boot-menu and BIOS keys must be pressed at ' +
+      'the right moment — say which key and when, and the orchestrator handles ' +
+      'precise timing. Never assume an action worked without a screenshot ' +
+      'confirming it.'
     )
   }
 
@@ -124,6 +130,8 @@ export class KvmBackend implements TargetBackend {
       }
       case 'wait':
         return { kind: 'wait', summary: 'wait', detail: `wait ${String(inv.input.duration ?? '')}` }
+      case 'zoom':
+        return { kind: 'note', summary: 'Zoom into a region', detail: `zoom ${JSON.stringify(inv.input.region ?? [])}` }
       default:
         return { kind: 'note', summary: action, detail: JSON.stringify(inv.input) }
     }
@@ -139,6 +147,28 @@ export class KvmBackend implements TargetBackend {
       log.push('Captured screenshot')
       return {
         resultText: 'Screenshot captured.',
+        imageBase64: frame.jpegBase64,
+        imageMediaType: 'image/jpeg',
+        actionLog: log
+      }
+    }
+
+    if (action === 'zoom') {
+      const region = Array.isArray(inv.input.region) ? (inv.input.region as number[]) : null
+      if (!region || region.length < 4) return this.err('Zoom needs a region [x1,y1,x2,y2].', log)
+      const fw = this.lastFrame?.width ?? MODEL_DISPLAY_WIDTH
+      const fh = this.lastFrame?.height ?? MODEL_DISPLAY_HEIGHT
+      const frac: FrameRegion = {
+        fx1: clamp01(Math.min(region[0]!, region[2]!) / fw),
+        fy1: clamp01(Math.min(region[1]!, region[3]!) / fh),
+        fx2: clamp01(Math.max(region[0]!, region[2]!) / fw),
+        fy2: clamp01(Math.max(region[1]!, region[3]!) / fh)
+      }
+      const frame = await this.capture(frac)
+      if (!frame) return this.err('Could not capture the zoom region.', log)
+      log.push(`zoom [${region.join(',')}]`)
+      return {
+        resultText: 'Zoomed region (native resolution) attached.',
         imageBase64: frame.jpegBase64,
         imageMediaType: 'image/jpeg',
         actionLog: log
@@ -178,10 +208,11 @@ export class KvmBackend implements TargetBackend {
 
   // --- helpers -------------------------------------------------------------
 
-  private async capture(): Promise<CapturedFrame | null> {
-    const res = await kvmBridge.send({ type: 'capture' }, 15_000)
+  private async capture(region?: FrameRegion): Promise<CapturedFrame | null> {
+    const res = await kvmBridge.send({ type: 'capture', ...(region ? { region } : {}) }, 15_000)
     if (!res.ok || !res.frame) return null
-    this.lastFrame = { width: res.frame.width, height: res.frame.height }
+    // A zoom crop is a detail view — it must NOT become the coordinate baseline.
+    if (!region) this.lastFrame = { width: res.frame.width, height: res.frame.height }
     return res.frame
   }
 
@@ -281,4 +312,8 @@ export class KvmBackend implements TargetBackend {
 
 function truncate(s: string, n: number): string {
   return s.length > n ? s.slice(0, n) + '…' : s
+}
+
+function clamp01(v: number): number {
+  return Math.max(0, Math.min(1, v))
 }
