@@ -161,3 +161,13 @@ These don't need KVM hardware — Local mode (or no session) exercises them.
 - ☐ **Last view** — leave the app on Settings, reopen → it returns to Settings.
 - ☐ **Reduced motion** — with the OS "reduce motion" setting on, list auto-scroll
   and card animations are instant rather than animated.
+- ☐ **Export summary (mid-session)** — while a session is running, *Attempted fixes
+  → Export…* saves a Markdown file; open it and confirm the steps so far, status,
+  activity log, chat, and cost are present and readable.
+- ☐ **Export summary (at end)** — after a session ends, export again → the file
+  reflects the final status and every step.
+- ☐ **Copy summary** — *Copy* (or `Ctrl+Shift+E`) puts the same Markdown on the
+  clipboard; paste it elsewhere to confirm.
+- ☐ **Export with no session** — from a fresh app (no session yet), *Session →
+  Export Summary…* shows a friendly "nothing to export yet" dialog rather than
+  failing; the in-panel buttons are disabled.

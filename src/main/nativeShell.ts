@@ -13,6 +13,7 @@ import type { SessionRunState, SessionSnapshot } from '@shared/types'
 import { createLogger } from './logger'
 import { sessionManager } from './orchestrator/manager'
 import { checkForUpdates } from './updater'
+import { copySummaryToClipboard, exportSummaryToFile } from './sessionExport'
 
 /**
  * The "native shell": everything that makes TroubleCrack feel like a real desktop
@@ -229,7 +230,10 @@ function buildMenu(): void {
     label: '&Session',
     submenu: [
       { label: 'New Session', accelerator: 'CmdOrCtrl+N', click: () => sendMenu('new-session') },
-      { label: 'Stop Session', accelerator: 'CmdOrCtrl+.', click: () => sessionManager.stop() }
+      { label: 'Stop Session', accelerator: 'CmdOrCtrl+.', click: () => sessionManager.stop() },
+      { type: 'separator' },
+      { label: 'Export Summary…', accelerator: 'CmdOrCtrl+E', click: () => void exportSummaryToFile(win, true) },
+      { label: 'Copy Summary', accelerator: 'CmdOrCtrl+Shift+E', click: () => copySummaryToClipboard(win, true) }
     ]
   })
 

@@ -13,6 +13,7 @@ import type { KvmTargetSelection } from '@shared/ipc-contract'
 import { setLogBroadcaster } from './logger'
 import { checkForUpdates, currentUpdateStatus, quitAndInstall, setUpdateBroadcaster } from './updater'
 import { onNativeSnapshot } from './nativeShell'
+import { copySummaryToClipboard, exportSummaryToFile } from './sessionExport'
 
 /**
  * Register every IPC handler and wire the main → renderer broadcasters. Called
@@ -52,6 +53,8 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
   ipcMain.handle(CH.sendChat, (_e, text: string) => sessionManager.sendChat(text))
   ipcMain.handle(CH.idleChat, (_e, text: string) => sessionManager.idleChat(text))
   ipcMain.handle(CH.getSnapshot, () => sessionManager.getSnapshot())
+  ipcMain.handle(CH.exportSummary, () => exportSummaryToFile(getWindow(), false))
+  ipcMain.handle(CH.copySummary, () => copySummaryToClipboard(getWindow(), false))
 
   // Updates ------------------------------------------------------------------
   ipcMain.handle(CH.checkForUpdates, () => checkForUpdates(false))

@@ -297,6 +297,17 @@ body.col-resizing .splitter {
   align-items: center;
   gap: 8px;
 }
+.panel-head .spacer {
+  flex: 1;
+}
+/* Compact actions living in a panel header (e.g. Export / Copy). */
+.panel-head button.mini {
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 500;
+  font-size: 11px;
+  padding: 2px 8px;
+}
 .panel > .panel-body {
   flex: 1;
   overflow: auto;

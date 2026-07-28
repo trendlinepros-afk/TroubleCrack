@@ -4,6 +4,7 @@ import type {
   KvmCommandEnvelope,
   KvmReplyEnvelope,
   MenuAction,
+  SummaryExportResult,
   TroubleCrackApi,
   UpdateCheckResult
 } from '@shared/ipc-contract'
@@ -48,6 +49,8 @@ const api: TroubleCrackApi = {
   sendChat: (text: string) => ipcRenderer.invoke(CH.sendChat, text) as Promise<void>,
   idleChat: (text: string) => ipcRenderer.invoke(CH.idleChat, text),
   getSnapshot: () => ipcRenderer.invoke(CH.getSnapshot) as Promise<SessionSnapshot | null>,
+  exportSummary: () => ipcRenderer.invoke(CH.exportSummary) as Promise<SummaryExportResult>,
+  copySummary: () => ipcRenderer.invoke(CH.copySummary) as Promise<SummaryExportResult>,
 
   checkForUpdates: () => ipcRenderer.invoke(CH.checkForUpdates) as Promise<UpdateCheckResult>,
   quitAndInstall: () => ipcRenderer.invoke(CH.quitAndInstall) as Promise<void>,

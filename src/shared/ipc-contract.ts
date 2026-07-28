@@ -38,6 +38,8 @@ export const CH = {
   sendChat: 'session:chat',
   idleChat: 'session:idle-chat',
   getSnapshot: 'session:snapshot',
+  exportSummary: 'session:export-summary',
+  copySummary: 'session:copy-summary',
   checkForUpdates: 'update:check',
   quitAndInstall: 'update:install',
   // renderer → main (invoke): device discovery + target selection
@@ -141,6 +143,15 @@ export interface RelaunchResult {
   message: string
 }
 
+/** Result of exporting/copying a session summary. `canceled` is set when the
+ *  user dismissed the save dialog (not an error). */
+export interface SummaryExportResult {
+  ok: boolean
+  path?: string
+  canceled?: boolean
+  error?: string
+}
+
 export interface TroubleCrackApi {
   // settings & system
   getSettings(): Promise<Settings>
@@ -166,6 +177,10 @@ export interface TroubleCrackApi {
   sendChat(text: string): Promise<void>
   idleChat(text: string): Promise<{ reply: string; suggestLocalSession: boolean }>
   getSnapshot(): Promise<SessionSnapshot | null>
+  /** Save a Markdown summary of the current/last session via a native dialog. */
+  exportSummary(): Promise<SummaryExportResult>
+  /** Copy the same Markdown summary to the clipboard. */
+  copySummary(): Promise<SummaryExportResult>
 
   // updates
   checkForUpdates(): Promise<UpdateCheckResult>

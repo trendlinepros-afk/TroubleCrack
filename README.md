@@ -136,7 +136,13 @@ npm run dist       # build a Windows x64 NSIS installer (release/)
   upscaled) so small or unreadable text (stop codes, dialog fine print) is legible
   without disturbing its screenshot baseline.
 - **Now:** the agent's running narration and pending approval requests.
-- **Attempted Fixes:** the session's step-by-step history with outcomes.
+- **Attempted Fixes:** the session's step-by-step history with outcomes, and
+  **Export… / Copy** buttons that produce a Markdown summary of the steps taken —
+  available **during** a session (progress so far) and **after** it ends. The
+  summary covers the machine/problem, status, duration, each step and its outcome,
+  the full activity log, admin chat, and estimated cost — ready to paste into a
+  ticket. Also available from **Session → Export Summary…** (`Ctrl+E`) and **Copy
+  Summary** (`Ctrl+Shift+E`).
 - **Admin Chat:** free-text guidance injected as high-priority context. With no
   session running, describe a problem and the agent offers to start a Local
   session.
