@@ -1,21 +1,24 @@
 import { promises as fs } from 'node:fs'
+import path from 'node:path'
 import { app, clipboard, dialog, type BrowserWindow } from 'electron'
 import { buildSessionSummary, summaryFileName } from '@shared/summary'
 import type { SummaryExportResult } from '@shared/ipc-contract'
-import { sessionManager } from './orchestrator/manager'
+import type { SessionSnapshot } from '@shared/types'
+import { loadSettings, summaryExportDir } from './settings'
 import { createLogger } from './logger'
 
 const logger = createLogger('session-export')
 
 /**
- * Export a Markdown summary of the current (or last) session to a file the
- * operator picks. Works mid-session (progress so far) and after it ends.
+ * Export a Markdown summary of a session to a file the operator picks. Works
+ * mid-session (progress so far) and after it ends. The snapshot is passed in by
+ * the caller so this module stays free of the session manager (no import cycle).
  */
 export async function exportSummaryToFile(
   win: BrowserWindow | null,
+  snapshot: SessionSnapshot | null,
   fromMenu = false
 ): Promise<SummaryExportResult> {
-  const snapshot = sessionManager.getSnapshot()
   if (!snapshot) return noSession(win, fromMenu)
   try {
     const markdown = buildSessionSummary(snapshot, { appVersion: app.getVersion() })
@@ -38,8 +41,11 @@ export async function exportSummaryToFile(
 }
 
 /** Copy the same Markdown summary to the system clipboard. */
-export function copySummaryToClipboard(win: BrowserWindow | null, fromMenu = false): SummaryExportResult {
-  const snapshot = sessionManager.getSnapshot()
+export function copySummaryToClipboard(
+  win: BrowserWindow | null,
+  snapshot: SessionSnapshot | null,
+  fromMenu = false
+): SummaryExportResult {
   if (!snapshot) return noSession(win, fromMenu)
   try {
     clipboard.writeText(buildSessionSummary(snapshot, { appVersion: app.getVersion() }))
@@ -48,6 +54,54 @@ export function copySummaryToClipboard(win: BrowserWindow | null, fromMenu = fal
   } catch (err) {
     logger.error('Failed to copy session summary', err)
     return { ok: false, error: err instanceof Error ? err.message : 'Copy failed' }
+  }
+}
+
+/**
+ * Automatically write a summary when a session ends, to the configured (or
+ * default) folder. Defensive: never throws — a failed export must never disturb
+ * session teardown. Returns the written path, or null if disabled/skipped/failed.
+ */
+export async function autoExportSummary(snapshot: SessionSnapshot): Promise<string | null> {
+  const settings = loadSettings()
+  if (!settings.autoExportSummary) return null
+  // Don't clutter the folder with empty records from a session aborted before it
+  // did anything; a natural end always writes, even with zero attempts.
+  if (snapshot.attempts.length === 0 && snapshot.runState === 'stopped') return null
+
+  try {
+    const dir = summaryExportDir()
+    await fs.mkdir(dir, { recursive: true })
+    const markdown = buildSessionSummary(snapshot, { appVersion: app.getVersion() })
+    const target = await uniquePath(dir, summaryFileName(snapshot))
+    await fs.writeFile(target, markdown, 'utf8')
+    logger.info(`Auto-saved session summary to ${target}`)
+    return target
+  } catch (err) {
+    logger.error('Auto-export of session summary failed (continuing without it)', err)
+    return null
+  }
+}
+
+/** Return `<dir>/<name>`, appending -1, -2, … if that file already exists. */
+async function uniquePath(dir: string, name: string): Promise<string> {
+  const ext = path.extname(name)
+  const base = name.slice(0, name.length - ext.length)
+  let candidate = path.join(dir, name)
+  let n = 1
+  while (await exists(candidate)) {
+    candidate = path.join(dir, `${base}-${n}${ext}`)
+    n += 1
+  }
+  return candidate
+}
+
+async function exists(p: string): Promise<boolean> {
+  try {
+    await fs.stat(p)
+    return true
+  } catch {
+    return false
   }
 }
 

@@ -171,3 +171,12 @@ These don't need KVM hardware — Local mode (or no session) exercises them.
 - ☐ **Export with no session** — from a fresh app (no session yet), *Session →
   Export Summary…* shows a friendly "nothing to export yet" dialog rather than
   failing; the in-panel buttons are disabled.
+- ☐ **Auto-export on end** — with *Settings → Session summaries → Automatically
+  save…* on (default), finish (or stop, after ≥1 step) a session → a `.md` file
+  appears in the summary folder (default `Documents/TroubleCrack`), and the *Now*
+  feed shows "📄 Summary saved to …". *Open* in Settings reveals the folder.
+- ☐ **Auto-export off** — untick the setting → ending a session writes no file.
+- ☐ **Custom folder** — set a custom summary folder → the next auto-export lands
+  there; picking *Default* reverts to `Documents/TroubleCrack`.
+- ☐ **Aborted-immediately** — start and immediately stop a session (zero steps) →
+  no empty summary file is written.

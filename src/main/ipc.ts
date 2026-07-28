@@ -1,8 +1,9 @@
-import { app, dialog, ipcMain, type BrowserWindow } from 'electron'
+import { promises as fs } from 'node:fs'
+import { app, dialog, ipcMain, shell, type BrowserWindow } from 'electron'
 import { CH } from '@shared/ipc-contract'
 import type { KvmReplyEnvelope } from '@shared/ipc-contract'
 import type { ApprovalDecision, ApprovalMode, ConnectionStatus, SettingsPatch, StartSessionInput } from '@shared/types'
-import { loadSettings, saveSettings, validateSettings } from './settings'
+import { loadSettings, saveSettings, summaryExportDir, validateSettings } from './settings'
 import { getElevationStatus, relaunchAsAdmin } from './system'
 import { sessionManager } from './orchestrator/manager'
 import { kvmBridge } from './kvmBridge'
@@ -39,6 +40,15 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     })
     return result.canceled ? null : result.filePaths[0] ?? null
   })
+  ipcMain.handle(CH.openSummaryDir, async () => {
+    const dir = summaryExportDir()
+    try {
+      await fs.mkdir(dir, { recursive: true })
+    } catch {
+      /* opening will surface any real problem */
+    }
+    await shell.openPath(dir)
+  })
 
   // Session control ----------------------------------------------------------
   ipcMain.handle(CH.startSession, (_e, input: StartSessionInput) => sessionManager.start(input))
@@ -53,8 +63,8 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
   ipcMain.handle(CH.sendChat, (_e, text: string) => sessionManager.sendChat(text))
   ipcMain.handle(CH.idleChat, (_e, text: string) => sessionManager.idleChat(text))
   ipcMain.handle(CH.getSnapshot, () => sessionManager.getSnapshot())
-  ipcMain.handle(CH.exportSummary, () => exportSummaryToFile(getWindow(), false))
-  ipcMain.handle(CH.copySummary, () => copySummaryToClipboard(getWindow(), false))
+  ipcMain.handle(CH.exportSummary, () => exportSummaryToFile(getWindow(), sessionManager.getSnapshot(), false))
+  ipcMain.handle(CH.copySummary, () => copySummaryToClipboard(getWindow(), sessionManager.getSnapshot(), false))
 
   // Updates ------------------------------------------------------------------
   ipcMain.handle(CH.checkForUpdates, () => checkForUpdates(false))

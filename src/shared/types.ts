@@ -84,6 +84,12 @@ export interface Settings {
   defaultApprovalMode: ApprovalMode
   /** GitHub repo "owner/name" used for auto-update, if configured. */
   updateRepo: string | null
+  /** When true, a Markdown summary is written automatically when a session ends. */
+  autoExportSummary: boolean
+  /** Folder for auto-exported summaries; null means use the default location. */
+  summaryExportDir: string | null
+  /** The resolved default folder (read-only; shown when summaryExportDir is null). */
+  summaryExportDirDefault: string
 }
 
 /** Patch shape accepted by saveSettings. Secrets come in as plaintext and are
@@ -96,6 +102,8 @@ export interface SettingsPatch {
   defaultApprovalMode?: ApprovalMode
   updateRepo?: string | null
   anthropicApiKeyPlaintext?: string | null
+  autoExportSummary?: boolean
+  summaryExportDir?: string | null
 }
 
 // ---------------------------------------------------------------------------

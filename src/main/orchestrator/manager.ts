@@ -6,6 +6,7 @@ import { LocalBackend } from '../backends/localBackend'
 import { VaultService } from '../vault'
 import { RepairSession } from './session'
 import { getApiKeyPlaintext, loadSettings } from '../settings'
+import { autoExportSummary } from '../sessionExport'
 import type {
   ApprovalDecision,
   ApprovalMode,
@@ -155,6 +156,28 @@ class SessionManager {
     void this.store.write(s)
     this.broadcast?.(s)
     logger.info(`Session ${s.id} finished: ${s.orchestratorState} / ${s.runState}`)
+    void this.autoExport(s)
+  }
+
+  /** Write a summary automatically when a session ends, then note where it went
+   *  in the feed. Best-effort — a failed export never disturbs the session. */
+  private async autoExport(s: SessionSnapshot): Promise<void> {
+    try {
+      const savedPath = await autoExportSummary(s)
+      if (!savedPath) return
+      s.narration.push({
+        id: `${Date.now()}-export`,
+        ts: Date.now(),
+        kind: 'info',
+        text: `📄 Summary saved to ${savedPath}`
+      })
+      s.updatedAt = Date.now()
+      this.lastSnapshot = s
+      void this.store.write(s)
+      this.broadcast?.(s)
+    } catch (err) {
+      logger.warn('Auto-export follow-up failed')
+    }
   }
 }
 

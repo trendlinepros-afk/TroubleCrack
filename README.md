@@ -142,7 +142,10 @@ npm run dist       # build a Windows x64 NSIS installer (release/)
   summary covers the machine/problem, status, duration, each step and its outcome,
   the full activity log, admin chat, and estimated cost — ready to paste into a
   ticket. Also available from **Session → Export Summary…** (`Ctrl+E`) and **Copy
-  Summary** (`Ctrl+Shift+E`).
+  Summary** (`Ctrl+Shift+E`). A summary is **also written automatically when a
+  session ends** (on by default) to `Documents/TroubleCrack/` — change the folder
+  or turn it off under **Settings → Session summaries**; the *Now* feed shows where
+  each file was saved.
 - **Admin Chat:** free-text guidance injected as high-priority context. With no
   session running, describe a problem and the agent offers to start a Local
   session.

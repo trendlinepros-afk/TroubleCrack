@@ -232,8 +232,16 @@ function buildMenu(): void {
       { label: 'New Session', accelerator: 'CmdOrCtrl+N', click: () => sendMenu('new-session') },
       { label: 'Stop Session', accelerator: 'CmdOrCtrl+.', click: () => sessionManager.stop() },
       { type: 'separator' },
-      { label: 'Export Summary…', accelerator: 'CmdOrCtrl+E', click: () => void exportSummaryToFile(win, true) },
-      { label: 'Copy Summary', accelerator: 'CmdOrCtrl+Shift+E', click: () => copySummaryToClipboard(win, true) }
+      {
+        label: 'Export Summary…',
+        accelerator: 'CmdOrCtrl+E',
+        click: () => void exportSummaryToFile(win, sessionManager.getSnapshot(), true)
+      },
+      {
+        label: 'Copy Summary',
+        accelerator: 'CmdOrCtrl+Shift+E',
+        click: () => copySummaryToClipboard(win, sessionManager.getSnapshot(), true)
+      }
     ]
   })
 

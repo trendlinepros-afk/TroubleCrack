@@ -23,6 +23,8 @@ interface PersistedSettings {
   caps: Settings['caps']
   defaultApprovalMode: Settings['defaultApprovalMode']
   updateRepo: string | null
+  autoExportSummary: boolean
+  summaryExportDir: string | null
 }
 
 interface Secrets {
@@ -37,7 +39,9 @@ const defaultPersisted: PersistedSettings = {
   vaultPath: null,
   caps: { ...DEFAULT_CAPS },
   defaultApprovalMode: 'approval',
-  updateRepo: null
+  updateRepo: null,
+  autoExportSummary: true,
+  summaryExportDir: null
 }
 
 const defaultSecrets: Secrets = { apiKey: null, kvmPassword: null }
@@ -92,8 +96,27 @@ export function loadSettings(): Settings {
     vaultPath: p.vaultPath,
     caps: p.caps,
     defaultApprovalMode: p.defaultApprovalMode,
-    updateRepo: p.updateRepo
+    updateRepo: p.updateRepo,
+    // Default `undefined` (settings.json from before this field existed) to ON.
+    autoExportSummary: p.autoExportSummary ?? true,
+    summaryExportDir: p.summaryExportDir ?? null,
+    summaryExportDirDefault: defaultSummaryDir()
   }
+}
+
+/** The folder auto-exported summaries go to when none is configured. Prefers the
+ *  user's Documents folder (discoverable); falls back to userData if unavailable. */
+export function defaultSummaryDir(): string {
+  try {
+    return path.join(app.getPath('documents'), 'TroubleCrack')
+  } catch {
+    return path.join(app.getPath('userData'), 'summaries')
+  }
+}
+
+/** The effective folder for auto-exported summaries (configured or default). */
+export function summaryExportDir(): string {
+  return loadSettings().summaryExportDir || defaultSummaryDir()
 }
 
 export function getApiKeyPlaintext(): string | null {
@@ -121,7 +144,10 @@ export async function saveSettings(patch: SettingsPatch): Promise<Settings> {
     vaultPath: patch.vaultPath !== undefined ? patch.vaultPath : cur.vaultPath,
     caps: { ...cur.caps, ...(patch.caps ?? {}) },
     defaultApprovalMode: patch.defaultApprovalMode ?? cur.defaultApprovalMode,
-    updateRepo: patch.updateRepo !== undefined ? patch.updateRepo : cur.updateRepo
+    updateRepo: patch.updateRepo !== undefined ? patch.updateRepo : cur.updateRepo,
+    autoExportSummary: patch.autoExportSummary ?? cur.autoExportSummary ?? true,
+    summaryExportDir:
+      patch.summaryExportDir !== undefined ? patch.summaryExportDir : cur.summaryExportDir ?? null
   }
 
   const nextSecrets: Secrets = { ...curSecrets }

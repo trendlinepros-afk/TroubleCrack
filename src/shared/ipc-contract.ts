@@ -28,6 +28,7 @@ export const CH = {
   relaunchAsAdmin: 'system:relaunch-admin',
   getAppVersion: 'system:app-version',
   pickDirectory: 'system:pick-directory',
+  openSummaryDir: 'system:open-summary-dir',
   startSession: 'session:start',
   pauseSession: 'session:pause',
   resumeSession: 'session:resume',
@@ -165,6 +166,8 @@ export interface TroubleCrackApi {
   relaunchAsAdmin(): Promise<RelaunchResult>
   getAppVersion(): Promise<string>
   pickDirectory(): Promise<string | null>
+  /** Open the folder where auto-exported session summaries are saved. */
+  openSummaryDir(): Promise<void>
 
   // session control
   startSession(input: StartSessionInput): Promise<SessionSnapshot>

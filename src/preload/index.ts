@@ -37,6 +37,7 @@ const api: TroubleCrackApi = {
   relaunchAsAdmin: () => ipcRenderer.invoke(CH.relaunchAsAdmin),
   getAppVersion: () => ipcRenderer.invoke(CH.getAppVersion) as Promise<string>,
   pickDirectory: () => ipcRenderer.invoke(CH.pickDirectory) as Promise<string | null>,
+  openSummaryDir: () => ipcRenderer.invoke(CH.openSummaryDir) as Promise<void>,
 
   startSession: (input: StartSessionInput) => ipcRenderer.invoke(CH.startSession, input) as Promise<SessionSnapshot>,
   pauseSession: () => ipcRenderer.invoke(CH.pauseSession) as Promise<void>,

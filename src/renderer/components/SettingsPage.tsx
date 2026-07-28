@@ -27,6 +27,8 @@ export function SettingsPage(): React.JSX.Element {
   const [maxSpend, setMaxSpend] = useState(5)
   const [maxWallMin, setMaxWallMin] = useState(45)
   const [updateRepo, setUpdateRepo] = useState('')
+  const [autoExport, setAutoExport] = useState(true)
+  const [summaryDir, setSummaryDir] = useState<string | null>(null)
 
   const [validation, setValidation] = useState<SettingsValidation | null>(null)
   const [busy, setBusy] = useState(false)
@@ -43,6 +45,8 @@ export function SettingsPage(): React.JSX.Element {
     setMaxSpend(settings.caps.maxSpendUsd)
     setMaxWallMin(Math.round(settings.caps.maxWallClockMs / 60000))
     setUpdateRepo(settings.updateRepo ?? '')
+    setAutoExport(settings.autoExportSummary)
+    setSummaryDir(settings.summaryExportDir)
   }, [settings])
 
   const discover = async (): Promise<void> => {
@@ -92,6 +96,8 @@ export function SettingsPage(): React.JSX.Element {
         vaultPath,
         caps: { maxIterations, maxSpendUsd: maxSpend, maxWallClockMs: maxWallMin * 60000 },
         updateRepo: updateRepo.trim() || null,
+        autoExportSummary: autoExport,
+        summaryExportDir: summaryDir,
         ...(apiKey ? { anthropicApiKeyPlaintext: apiKey } : {})
       })
       setSettings(next)
@@ -128,6 +134,11 @@ export function SettingsPage(): React.JSX.Element {
   const pickVault = async (): Promise<void> => {
     const dir = await window.api.pickDirectory()
     if (dir) setVaultPath(dir)
+  }
+
+  const pickSummaryDir = async (): Promise<void> => {
+    const dir = await window.api.pickDirectory()
+    if (dir) setSummaryDir(dir)
   }
 
   return (
@@ -291,6 +302,40 @@ export function SettingsPage(): React.JSX.Element {
             </span>
           </div>
         )}
+      </div>
+
+      <div className="group">
+        <h3>Session summaries</h3>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+          <input
+            type="checkbox"
+            checked={autoExport}
+            onChange={(e) => setAutoExport(e.target.checked)}
+            style={{ width: 'auto', margin: 0 }}
+          />
+          Automatically save a Markdown summary when a session ends
+        </label>
+        <div className="row single">
+          <div>
+            <label>Summary folder</label>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input
+                value={summaryDir ?? ''}
+                readOnly
+                placeholder={`Default: ${settings?.summaryExportDirDefault ?? 'Documents/TroubleCrack'}`}
+              />
+              <button onClick={() => void pickSummaryDir()}>Choose…</button>
+              {summaryDir && <button onClick={() => setSummaryDir(null)}>Default</button>}
+              <button onClick={() => void window.api.openSummaryDir()} title="Open the summary folder">
+                Open
+              </button>
+            </div>
+            <p className="muted" style={{ margin: '6px 0 0' }}>
+              You can also export or copy a summary any time from the <em>Attempted fixes</em> panel
+              (or <span className="mono">Ctrl+E</span>) — during a session or after it ends.
+            </p>
+          </div>
+        </div>
       </div>
 
       <div className="group">
