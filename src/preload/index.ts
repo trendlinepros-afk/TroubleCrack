@@ -3,6 +3,7 @@ import { CH } from '@shared/ipc-contract'
 import type {
   KvmCommandEnvelope,
   KvmReplyEnvelope,
+  MenuAction,
   TroubleCrackApi,
   UpdateCheckResult
 } from '@shared/ipc-contract'
@@ -62,7 +63,8 @@ const api: TroubleCrackApi = {
   onSessionUpdate: (cb: (s: SessionSnapshot) => void) => on<SessionSnapshot>(CH.evSessionUpdate, cb),
   onConnectionUpdate: (cb: (c: ConnectionStatus) => void) => on<ConnectionStatus>(CH.evConnectionUpdate, cb),
   onLog: (cb: (e: LogEvent) => void) => on<LogEvent>(CH.evLog, cb),
-  onUpdateStatus: (cb: (u: UpdateStatus) => void) => on<UpdateStatus>(CH.evUpdateStatus, cb)
+  onUpdateStatus: (cb: (u: UpdateStatus) => void) => on<UpdateStatus>(CH.evUpdateStatus, cb),
+  onMenuAction: (cb: (action: MenuAction) => void) => on<MenuAction>(CH.evMenuAction, cb)
 }
 
 contextBridge.exposeInMainWorld('api', api)

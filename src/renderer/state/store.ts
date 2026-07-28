@@ -8,8 +8,10 @@ import type {
   SessionSnapshot,
   UpdateStatus
 } from '@shared/types'
+import { lsGet, lsSet } from '../util'
 
 const MAX_LOGS = 300
+const VIEW_KEY = 'tc.view'
 
 export type View = 'main' | 'settings'
 
@@ -23,6 +25,9 @@ export interface AppState {
   appVersion: string
   idleChat: ChatMessage[]
   view: View
+  /** Bumped when the operator asks for a fresh session (menu / shortcut) so the
+   *  session bar can pull focus to the problem field. */
+  focusProblemNonce: number
 
   setSettings: (s: Settings) => void
   setSnapshot: (s: SessionSnapshot | null) => void
@@ -33,6 +38,7 @@ export interface AppState {
   setAppVersion: (v: string) => void
   addIdleChat: (m: ChatMessage) => void
   setView: (v: View) => void
+  requestNewSession: () => void
 }
 
 export const useStore = create<AppState>((set) => ({
@@ -44,7 +50,8 @@ export const useStore = create<AppState>((set) => ({
   elevation: null,
   appVersion: '',
   idleChat: [],
-  view: 'main',
+  view: lsGet<View>(VIEW_KEY, 'main'),
+  focusProblemNonce: 0,
 
   setSettings: (s) => set({ settings: s }),
   setSnapshot: (s) => set({ snapshot: s }),
@@ -55,5 +62,13 @@ export const useStore = create<AppState>((set) => ({
   setElevation: (e) => set({ elevation: e }),
   setAppVersion: (v) => set({ appVersion: v }),
   addIdleChat: (m) => set((state) => ({ idleChat: [...state.idleChat, m] })),
-  setView: (v) => set({ view: v })
+  setView: (v) => {
+    lsSet(VIEW_KEY, v)
+    set({ view: v })
+  },
+  requestNewSession: () =>
+    set((state) => {
+      lsSet(VIEW_KEY, 'main')
+      return { view: 'main', focusProblemNonce: state.focusProblemNonce + 1 }
+    })
 }))

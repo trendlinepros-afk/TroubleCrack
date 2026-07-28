@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { useStore } from '../state/store'
-import { fmtTime } from '../util'
+import { fmtTime, scrollAnchor } from '../util'
 import type { ApprovalRequest } from '@shared/types'
 
 /** The AI's running narration + pending approval requests. */
@@ -10,7 +10,7 @@ export function NowPanel(): React.JSX.Element {
   const narration = snapshot?.narration ?? []
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    scrollAnchor(bottomRef.current)
   }, [narration.length])
 
   return (

@@ -131,12 +131,39 @@ npm run dist       # build a Windows x64 NSIS installer (release/)
   action needs a click) vs **Auto** (a hard blocklist still forces approval for
   destructive actions). Elapsed time and estimated API spend show live.
 - **Live Preview:** the WebRTC stream (KVM) or a live command transcript (Local),
-  with a connection badge and **manual takeover**.
+  with a connection badge and **manual takeover**. On KVM targets the agent can
+  **zoom** — request a high-resolution crop of any region (native-resolution,
+  upscaled) so small or unreadable text (stop codes, dialog fine print) is legible
+  without disturbing its screenshot baseline.
 - **Now:** the agent's running narration and pending approval requests.
 - **Attempted Fixes:** the session's step-by-step history with outcomes.
 - **Admin Chat:** free-text guidance injected as high-priority context. With no
   session running, describe a problem and the agent offers to start a Local
   session.
+
+Before a repair is declared **fixed**, a **second-opinion** check runs — a fresh,
+skeptical cross-check (a new screenshot re-examined against the original problem on
+KVM; a review of the agent's own reasoning and actions on Local). If it can't
+confirm the fix, the run keeps working rather than stopping early; a check that
+errors out never vetoes a genuine fix.
+
+### Desktop app conveniences
+
+TroubleCrack behaves like a native desktop app, not a web page:
+
+- **Application menu** with real accelerators — **Settings** (`Ctrl+,`), **New
+  Session** (`Ctrl+N`), **Stop Session** (`Ctrl+.`), zoom, full-screen, and
+  **Open Logs Folder** under Help. `Esc` leaves the Settings page.
+- **Background attention:** when the window isn't focused, a needed approval, a
+  stall that needs a human, or a finished session raises an **OS notification** and
+  flashes the taskbar. Clicking the notification brings the window forward.
+- **Live window title** reflects state (`● Repairing…`, `⏸ Paused`, `⚠ Approval
+  needed`, `✓ Fixed`).
+- **Remembers its layout** — window size/position (and maximized state) and the
+  side-panel width persist across launches.
+- **Quit guard:** closing the window mid-repair asks before stopping the session.
+- **Onboarding:** a first-run banner points a new operator at the API-key field,
+  and the Start button explains exactly what it's still waiting for.
 
 ### Local mode
 

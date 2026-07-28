@@ -54,8 +54,12 @@ export const CH = {
   evSessionUpdate: 'ev:session',
   evConnectionUpdate: 'ev:connection',
   evLog: 'ev:log',
-  evUpdateStatus: 'ev:update'
+  evUpdateStatus: 'ev:update',
+  evMenuAction: 'ev:menu'
 } as const
+
+/** Actions the native application menu asks the renderer to perform. */
+export type MenuAction = 'open-settings' | 'new-session'
 
 // --- KVM command bridge (main → renderer request/response) -----------------
 
@@ -185,6 +189,7 @@ export interface TroubleCrackApi {
   onConnectionUpdate(cb: (c: ConnectionStatus) => void): () => void
   onLog(cb: (e: LogEvent) => void): () => void
   onUpdateStatus(cb: (u: UpdateStatus) => void): () => void
+  onMenuAction(cb: (action: MenuAction) => void): () => void
 }
 
 declare global {

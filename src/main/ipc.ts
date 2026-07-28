@@ -12,6 +12,7 @@ import { setPreferredTarget } from './kvmResolve'
 import type { KvmTargetSelection } from '@shared/ipc-contract'
 import { setLogBroadcaster } from './logger'
 import { checkForUpdates, currentUpdateStatus, quitAndInstall, setUpdateBroadcaster } from './updater'
+import { onNativeSnapshot } from './nativeShell'
 
 /**
  * Register every IPC handler and wire the main → renderer broadcasters. Called
@@ -78,7 +79,11 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
 
   // Broadcasters -------------------------------------------------------------
   setLogBroadcaster((e) => send(CH.evLog, e))
-  sessionManager.setBroadcaster((s) => send(CH.evSessionUpdate, s))
+  sessionManager.setBroadcaster((s) => {
+    send(CH.evSessionUpdate, s)
+    // Drive the native title / notifications / taskbar attention off the same feed.
+    onNativeSnapshot(s)
+  })
   kvmBridge.onStatus((s) => send(CH.evConnectionUpdate, s))
   setUpdateBroadcaster((s) => send(CH.evUpdateStatus, s))
 

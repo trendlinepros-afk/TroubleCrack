@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useStore } from '../state/store'
+import { scrollAnchor } from '../util'
 import { kvmClient } from '../kvm/singleton'
 import { ConnectionBadge } from './ConnectionBadge'
 
@@ -15,7 +16,7 @@ export function LivePreview(): React.JSX.Element {
   const [manual, setManual] = useState(false)
 
   const mode = snapshot?.mode ?? 'kvm'
-  const running = snapshot?.runState === 'running' || snapshot?.runState === 'paused'
+  const connected = connection.phase === 'connected'
 
   useEffect(() => {
     kvmClient.setVideoElement(videoRef.current)
@@ -44,16 +45,26 @@ export function LivePreview(): React.JSX.Element {
         </div>
       )}
       <div className="preview-toolbar">
-        <button className={manual ? 'ok' : ''} onClick={toggleManual} disabled={connection.phase !== 'connected'}>
+        <button
+          className={manual ? 'ok' : ''}
+          onClick={toggleManual}
+          disabled={!connected}
+          title={
+            !connected
+              ? 'Connect to the device first'
+              : manual
+                ? 'Return control to the agent'
+                : 'Drive the target yourself; the agent pauses while you do'
+          }
+        >
           {manual ? '🖐 Manual control ON' : 'Take over (manual)'}
         </button>
       </div>
       {manual && (
-        <div className="badge" style={{ top: 'auto', bottom: 10, left: 10 }}>
+        <div className="badge manual-note" style={{ top: 'auto', bottom: 10, left: 10 }}>
           Your input goes to the target. The agent is paused.
         </div>
       )}
-      {running && manual && null}
     </div>
   )
 }
@@ -69,7 +80,7 @@ function LocalTranscript(): React.JSX.Element {
     : []
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    scrollAnchor(bottomRef.current)
   }, [lines.length])
 
   return (

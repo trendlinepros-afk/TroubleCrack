@@ -65,6 +65,10 @@ Legend: ☐ = to test.
   Deny is honored and the agent adapts.
 - ☐ **Auto-approve step** — "Approve + auto-approve this step" stops prompting for
   the rest of that step (but a blocklisted action still prompts).
+- ☐ **Region zoom** — point at a screen with small text (e.g. a BSOD stop code or a
+  dialog's fine print); the agent uses *zoom* to read it, and the zoomed crop is
+  visibly higher-resolution than the full frame. The full-frame baseline is
+  unchanged afterward (the next full screenshot still shows the whole screen).
 
 ## E. Orchestrator, playbook & boot watcher (Milestone 4)
 
@@ -80,6 +84,10 @@ Legend: ☐ = to test.
   NEEDS_HUMAN, never crashes.
 - ☐ **BitLocker** — at a BitLocker recovery prompt, the agent pauses and asks for
   the key in chat rather than guessing.
+- ☐ **Second opinion on FIXED** — when the agent believes it fixed the machine, a
+  fresh skeptical re-check runs before the session reports FIXED (a new screenshot
+  on KVM). If the problem clearly persists, the run continues instead of stopping;
+  if the check errors, a genuine fix is still accepted.
 
 ## F. Local mode (Milestone 6 — no KVM hardware needed)
 
@@ -123,3 +131,33 @@ Legend: ☐ = to test.
   that no raw stack trace is shown in the UI.
 - ☐ **Kill & resume** — kill the app during a session, reopen → the last snapshot
   (attempts, narration, cost) is restored for review.
+
+## J. Native feel & intuitiveness
+
+These don't need KVM hardware — Local mode (or no session) exercises them.
+
+- ☐ **Application menu** — the menu bar has File/Edit/Session/View/Help with working
+  accelerators: **Settings** (`Ctrl+,`), **New Session** (`Ctrl+N`), **Stop
+  Session** (`Ctrl+.`). Edit's Copy/Paste/Select-All work in text fields.
+- ☐ **Esc leaves Settings** — open Settings, press `Esc` → back to the session view.
+- ☐ **New Session focus** — File → *New Session* (or `Ctrl+N`) switches to the main
+  view and puts the cursor in the *Problem* field.
+- ☐ **Onboarding banner** — with no API key stored, the main view shows a welcome
+  banner with an *Add API key* button; Start is disabled with a tooltip that says
+  why. The banner disappears once a key is saved.
+- ☐ **Device hint** — in KVM mode with no device selected, a hint under the session
+  bar links to Settings.
+- ☐ **Window title** — the title tracks state: `● …`/`⏸ Paused`/`⚠ Approval
+  needed`/`✓ Fixed`.
+- ☐ **Background notifications** — with the window minimized/unfocused, trigger an
+  approval (Approval mode) → an OS notification appears and the taskbar button
+  flashes; clicking the notification brings the window forward. A finished session
+  notifies too.
+- ☐ **Quit guard** — close the window mid-session → a dialog asks before stopping;
+  *Keep running* cancels the close, *Stop repair & quit* exits.
+- ☐ **Remembers layout** — resize the window and drag the panel splitter, quit, and
+  reopen → the same size/position and panel width are restored; maximize is
+  remembered too.
+- ☐ **Last view** — leave the app on Settings, reopen → it returns to Settings.
+- ☐ **Reduced motion** — with the OS "reduce motion" setting on, list auto-scroll
+  and card animations are instant rather than animated.

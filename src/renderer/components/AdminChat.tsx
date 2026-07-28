@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useStore } from '../state/store'
-import { fmtTime } from '../util'
+import { fmtTime, scrollAnchor } from '../util'
 
 /**
  * Free-text chat with the agent. During a session, messages are injected as
@@ -20,7 +20,7 @@ export function AdminChat(): React.JSX.Element {
   const messages = active ? snapshot?.chat ?? [] : idleChat
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    scrollAnchor(bottomRef.current)
   }, [messages.length])
 
   const send = async (): Promise<void> => {

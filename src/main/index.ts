@@ -5,14 +5,19 @@ import { registerIpc } from './ipc'
 import { kvmBridge } from './kvmBridge'
 import { sessionManager } from './orchestrator/manager'
 import { initUpdater, disposeUpdater } from './updater'
+import { attachNativeShell } from './nativeShell'
+import { loadWindowBounds, trackWindow } from './windowState'
 
 const logger = createLogger('main')
 let mainWindow: BrowserWindow | null = null
 
 function createWindow(): void {
+  const bounds = loadWindowBounds()
   mainWindow = new BrowserWindow({
-    width: 1440,
-    height: 900,
+    x: bounds.x,
+    y: bounds.y,
+    width: bounds.width,
+    height: bounds.height,
     minWidth: 1024,
     minHeight: 680,
     show: false,
@@ -25,6 +30,13 @@ function createWindow(): void {
       nodeIntegration: false
     }
   })
+
+  if (bounds.maximized) mainWindow.maximize()
+
+  // Native desktop integration: menu, notifications, title, quit guard.
+  attachNativeShell(mainWindow)
+  // Remember size/position/maximized across launches.
+  trackWindow(mainWindow)
 
   mainWindow.on('ready-to-show', () => mainWindow?.show())
 
